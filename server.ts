@@ -594,6 +594,7 @@ async function startServer(): Promise<void> {
   app.use(express.json());
 
   app.get('/api/health', (_req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.json({ ok: true, rooms: rooms.size });
   });
 

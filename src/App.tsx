@@ -8,6 +8,9 @@ import type { PlayerSide } from './shared/gameTypes';
 export default function App() {
   const {
     connected,
+    activeWsUrl,
+    customWsUrl,
+    hasEnvWsUrl,
     roomCode,
     role,
     hostState,
@@ -15,6 +18,7 @@ export default function App() {
     lastFeedback,
     errorMessage,
     clearError,
+    setCustomWsUrl,
     createRoom,
     joinRoom,
     leaveRoom,
@@ -46,7 +50,14 @@ export default function App() {
   }, [connected, urlParams, roomCode, joinRoom]);
 
   if (role === 'host' && hostState) {
-    return <HostView state={hostState} onSend={send} onLeave={leaveRoom} />;
+    return (
+      <HostView
+        state={hostState}
+        customWsUrl={customWsUrl}
+        onSend={send}
+        onLeave={leaveRoom}
+      />
+    );
   }
 
   if ((role === 'red' || role === 'blue') && controllerState) {
@@ -63,10 +74,14 @@ export default function App() {
   return (
     <EntryScreen
       connected={connected}
+      activeWsUrl={activeWsUrl}
+      customWsUrl={customWsUrl}
+      hasEnvWsUrl={hasEnvWsUrl}
       errorMessage={errorMessage}
       initialRoomCode={urlParams.room}
       initialRole={urlParams.role}
       onClearError={clearError}
+      onSetCustomWsUrl={setCustomWsUrl}
       onCreateHostRoom={createRoom}
       onJoinRoom={joinRoom}
     />

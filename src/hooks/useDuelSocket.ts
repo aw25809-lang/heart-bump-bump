@@ -23,8 +23,62 @@ export type ActionFeedbackEvent = Extract<ServerToClientMessage, { type: 'action
   seq: number;
 };
 
+const WS_OVERRIDE_STORAGE_KEY = 'hd_ws_override';
+
+export function normalizeWsUrl(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+
+  let urlStr = trimmed;
+  if (urlStr.startsWith('https://')) {
+    urlStr = `wss://${urlStr.slice('https://'.length)}`;
+  } else if (urlStr.startsWith('http://')) {
+    urlStr = `ws://${urlStr.slice('http://'.length)}`;
+  } else if (!urlStr.startsWith('wss://') && !urlStr.startsWith('ws://')) {
+    const isLocal = urlStr.startsWith('localhost') || urlStr.startsWith('127.0.0.1');
+    urlStr = `${isLocal ? 'ws://' : 'wss://'}${urlStr}`;
+  }
+
+  try {
+    const parsed = new URL(urlStr);
+    if (!parsed.pathname || parsed.pathname === '/') {
+      parsed.pathname = '/ws';
+    }
+    return parsed.toString();
+  } catch {
+    return urlStr;
+  }
+}
+
+function getInitialCustomWsUrl(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = params.get('ws');
+    if (fromQuery && fromQuery.trim()) {
+      const normalized = normalizeWsUrl(fromQuery);
+      sessionStorage.setItem(WS_OVERRIDE_STORAGE_KEY, normalized);
+      return normalized;
+    }
+    return sessionStorage.getItem(WS_OVERRIDE_STORAGE_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+function resolveEffectiveWsUrl(customOverride: string): string {
+  if (customOverride) return normalizeWsUrl(customOverride);
+  const envUrl = (import.meta.env.VITE_WS_URL as string | undefined) || '';
+  if (envUrl.trim()) return normalizeWsUrl(envUrl);
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}/ws`;
+}
+
 export interface UseDuelSocketReturn {
   connected: boolean;
+  activeWsUrl: string;
+  customWsUrl: string;
+  hasEnvWsUrl: boolean;
   roomCode: string | null;
   role: ClientRole | null;
   hostState: HostRoomState | null;
@@ -32,6 +86,7 @@ export interface UseDuelSocketReturn {
   lastFeedback: ActionFeedbackEvent | null;
   errorMessage: string | null;
   clearError: () => void;
+  setCustomWsUrl: (url: string) => void;
   createRoom: () => void;
   joinRoom: (code: string, role: ClientRole) => void;
   leaveRoom: () => void;
@@ -49,6 +104,11 @@ export function useDuelSocket(): UseDuelSocketReturn {
   const reconnectTimerRef = useRef<number | null>(null);
   const feedbackSeqRef = useRef(0);
   const mountedRef = useRef(true);
+
+  const [customWsUrl, setCustomWsUrlState] = useState<string>(() => getInitialCustomWsUrl());
+  const customWsUrlRef = useRef<string>(customWsUrl);
+  customWsUrlRef.current = customWsUrl;
+  const hasEnvWsUrl = Boolean(((import.meta.env.VITE_WS_URL as string | undefined) || '').trim());
 
   const [connected, setConnected] = useState(false);
   const [roomCode, setRoomCode] = useState<string | null>(null);
@@ -71,8 +131,7 @@ export function useDuelSocket(): UseDuelSocketReturn {
       return;
     }
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const wsUrl = resolveEffectiveWsUrl(customWsUrlRef.current);
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
@@ -214,8 +273,42 @@ export function useDuelSocket(): UseDuelSocketReturn {
 
   const clearError = useCallback(() => setErrorMessage(null), []);
 
+  const setCustomWsUrl = useCallback(
+    (rawUrl: string) => {
+      const normalized = normalizeWsUrl(rawUrl);
+      customWsUrlRef.current = normalized;
+      setCustomWsUrlState(normalized);
+      try {
+        if (normalized) {
+          sessionStorage.setItem(WS_OVERRIDE_STORAGE_KEY, normalized);
+        } else {
+          sessionStorage.removeItem(WS_OVERRIDE_STORAGE_KEY);
+        }
+      } catch {
+        // Ignore sessionStorage restrictions
+      }
+      if (reconnectTimerRef.current !== null) {
+        window.clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      setConnected(false);
+      connect();
+    },
+    [connect],
+  );
+
+  const activeWsUrl = typeof window !== 'undefined' ? resolveEffectiveWsUrl(customWsUrl) : '';
+
   return {
     connected,
+    activeWsUrl,
+    customWsUrl,
+    hasEnvWsUrl,
     roomCode,
     role,
     hostState,
@@ -223,6 +316,7 @@ export function useDuelSocket(): UseDuelSocketReturn {
     lastFeedback,
     errorMessage,
     clearError,
+    setCustomWsUrl,
     createRoom,
     joinRoom,
     leaveRoom,

@@ -1,29 +1,48 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Headphones, Monitor, Smartphone, Vibrate, Zap } from 'lucide-react';
+import { Headphones, Monitor, Server, Smartphone, Vibrate, Zap } from 'lucide-react';
 import type { ClientRole, PlayerSide } from '../shared/gameTypes';
 
 interface EntryScreenProps {
   connected: boolean;
+  activeWsUrl: string;
+  customWsUrl: string;
+  hasEnvWsUrl: boolean;
   errorMessage: string | null;
   initialRoomCode: string;
   initialRole: PlayerSide;
   onClearError: () => void;
+  onSetCustomWsUrl: (url: string) => void;
   onCreateHostRoom: () => void;
   onJoinRoom: (code: string, role: ClientRole) => void;
 }
 
 export const EntryScreen: React.FC<EntryScreenProps> = ({
   connected,
+  activeWsUrl,
+  customWsUrl,
+  hasEnvWsUrl,
   errorMessage,
   initialRoomCode,
   initialRole,
   onClearError,
+  onSetCustomWsUrl,
   onCreateHostRoom,
   onJoinRoom,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [joinCode, setJoinCode] = useState(initialRoomCode);
   const [selectedSide, setSelectedSide] = useState<PlayerSide>(initialRole);
+  const [wsInput, setWsInput] = useState(customWsUrl);
+  const [showServerConfig, setShowServerConfig] = useState(false);
+  const isStaticHost =
+    typeof window !== 'undefined' &&
+    window.location.hostname.endsWith('github.io') &&
+    !hasEnvWsUrl &&
+    !customWsUrl;
+
+  useEffect(() => {
+    setWsInput(customWsUrl);
+  }, [customWsUrl]);
 
   useEffect(() => {
     if (initialRoomCode) setJoinCode(initialRoomCode);
@@ -312,6 +331,83 @@ export const EntryScreen: React.FC<EntryScreenProps> = ({
             <Zap className="h-4 w-4 shrink-0 text-amber-400" />
             <span>接觸時搶先按下攻擊鍵獲勝，未接觸揮擊會消耗次數</span>
           </div>
+        </div>
+
+        {/* External WebSocket Server Config (Helpful for GitHub Pages static deployment) */}
+        <div className="mt-5">
+          {(isStaticHost || !connected || showServerConfig) && (
+            <div className="rounded-xl border border-white/10 bg-[#101722]/90 p-4 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-slate-300">
+                  <Server className="h-4 w-4 text-amber-400" />
+                  <span>
+                    {connected
+                      ? `已連線對戰伺服器：${activeWsUrl}`
+                      : isStaticHost
+                        ? '目前為靜態託管環境且尚未設定 VITE_WS_URL，請輸入外部後端 WebSocket 位址：'
+                        : `無法連線至伺服器（${activeWsUrl}），可手動指定外部 WebSocket 位址：`}
+                  </span>
+                </div>
+                {connected && (
+                  <button
+                    type="button"
+                    onClick={() => setShowServerConfig(false)}
+                    className="text-slate-400 underline hover:text-white"
+                  >
+                    收合
+                  </button>
+                )}
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  onSetCustomWsUrl(wsInput);
+                }}
+                className="mt-3 flex flex-col gap-2 sm:flex-row"
+              >
+                <input
+                  type="text"
+                  value={wsInput}
+                  onChange={(e) => setWsInput(e.target.value)}
+                  placeholder="例如：wss://your-server.run.app/ws"
+                  className="font-mono-tabular flex-1 rounded-lg border border-white/10 bg-[#090D14] px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:border-amber-500 focus:outline-none"
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    className="min-h-[36px] rounded-lg bg-amber-500 px-4 py-1.5 font-bold text-slate-950 hover:bg-amber-400"
+                  >
+                    套用連線
+                  </button>
+                  {customWsUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWsInput('');
+                        onSetCustomWsUrl('');
+                      }}
+                      className="min-h-[36px] rounded-lg border border-white/10 px-3 py-1.5 text-slate-300 hover:text-white"
+                    >
+                      恢復預設
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+          )}
+
+          {connected && !showServerConfig && (
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => setShowServerConfig(true)}
+                className="text-xs text-slate-500 hover:text-slate-300"
+              >
+                切換外部 WebSocket 伺服器位址
+              </button>
+            </div>
+          )}
         </div>
       </main>
     </div>

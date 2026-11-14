@@ -25,6 +25,7 @@ import { audioHaptics } from '../utils/audioHaptics';
 
 interface HostViewProps {
   state: HostRoomState;
+  customWsUrl?: string;
   onSend: (msg: ClientToServerMessage) => void;
   onLeave: () => void;
 }
@@ -43,7 +44,7 @@ const TARGET_OPTIONS: { value: TargetWins; label: string }[] = [
   { value: 0, label: '自由連戰' },
 ];
 
-export const HostView: React.FC<HostViewProps> = ({ state, onSend, onLeave }) => {
+export const HostView: React.FC<HostViewProps> = ({ state, customWsUrl, onSend, onLeave }) => {
   const [copiedRole, setCopiedRole] = useState<'code' | 'red' | 'blue' | null>(null);
   const [hostMuted, setHostMuted] = useState(false);
 
@@ -360,8 +361,9 @@ export const HostView: React.FC<HostViewProps> = ({ state, onSend, onLeave }) =>
   }, [state.phase]);
 
   const baseUrl = typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname}` : '';
-  const redJoinUrl = `${baseUrl}?room=${state.roomCode}&role=red`;
-  const blueJoinUrl = `${baseUrl}?room=${state.roomCode}&role=blue`;
+  const wsQuery = customWsUrl ? `&ws=${encodeURIComponent(customWsUrl)}` : '';
+  const redJoinUrl = `${baseUrl}?room=${state.roomCode}&role=red${wsQuery}`;
+  const blueJoinUrl = `${baseUrl}?room=${state.roomCode}&role=blue${wsQuery}`;
 
   const copyText = async (text: string, tag: 'code' | 'red' | 'blue') => {
     try {
