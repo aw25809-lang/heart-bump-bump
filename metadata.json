@@ -1,0 +1,6 @@
+{
+  "name": "心跳對決 · Heartbeat Duel",
+  "description": "三裝置即時連線聽覺與震動雙人對戰遊戲 — 佩戴耳機依心跳距離辨位，接觸震動瞬間搶攻決勝。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
